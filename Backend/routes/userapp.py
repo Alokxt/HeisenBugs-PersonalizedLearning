@@ -1,4 +1,4 @@
-from flask import Blue, jsonify, request , current_app
+from flask import Blueprint, jsonify, request , current_app
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from models import db, User
 from recommender.recommend import generate_roadmap, get_active_roadmap, set_user_track, complete_skill , get_skill_graph_view , build_chat_context , set_skill_excluded , reorder_active_path ,get_progress_view
@@ -7,7 +7,7 @@ import os
 import re 
 import json 
 from embeddings.embedds import get_embeddings
-user_bp = Blue("user", __name__)
+user_bp = Blueprint("user", __name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 Knowledge_PATH = os.path.join(BASE_DIR, "rag_index")
 def get_vectorstores():
