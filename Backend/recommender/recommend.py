@@ -81,9 +81,17 @@ def get_proficiency(user: User, skill_id: int) -> int:
     return us.proficiency if us else 0
 
 
+def is_excluded(user: User, skill_id: int) -> bool:
+    us = UserSkill.query.filter_by(user_id=user.id, skill_id=skill_id).first()
+    return bool(us and us.excluded)
+
+
 def skill_gap(user: User, graph: dict) -> List[int]:
     order = topo_order(graph)
-    return [sid for sid in order if get_proficiency(user, sid) < MASTERY_THRESHOLD]
+    return [
+        sid for sid in order
+        if get_proficiency(user, sid) < MASTERY_THRESHOLD and not is_excluded(user, sid)
+    ]
 
 
 
@@ -219,16 +227,6 @@ def _persist_roadmap(user: User, roadmap: List[dict]) -> None:
 
 
 def complete_skill(user: User, skill_name: str, quiz_score: int) -> int:
-    """
-    Learner marks the recommended resource(s) for this skill as done ->
-    quiz fires -> score lands here. Proficiency is DERIVED, not set
-    directly: update_skill_mastery() only flips the skill to mastered
-    once EVERY LearningPathItem tied to it (in the active path) has a
-    SkillProgress score above MASTERY_THRESHOLD -- an AND across all
-    required resources, not just this one quiz attempt. Today that's
-    usually a single resource per skill, but this holds if a skill ever
-    needs more than one.
-    """
     skill = Skill.query.filter_by(name=skill_name).first()
     if skill is None:
         raise ValueError(f"No skill named '{skill_name}'")
@@ -258,11 +256,6 @@ def complete_skill(user: User, skill_name: str, quiz_score: int) -> int:
 
 
 def update_skill_mastery(user_id: int, skill_id: int) -> int:
-    """
-    A skill is mastered once every LearningPathItem tied to it (in the
-    user's active path) has a SkillProgress score above MASTERY_THRESHOLD.
-    Returns the resulting UserSkill.proficiency.
-    """
     active_path = LearningPath.query.filter_by(user_id=user_id, is_active=True).first()
     if not active_path:
         return 0
@@ -271,24 +264,23 @@ def update_skill_mastery(user_id: int, skill_id: int) -> int:
     if not items:
         return 0
 
-    all_passed = True
+    item_best_scores = []
     for item in items:
         best_score = (
             db.session.query(db.func.max(SkillProgress.score))
             .filter_by(user_id=user_id, skill_id=skill_id, resource_id=item.resource_id)
             .scalar()
         )
-        if best_score is None or best_score <= MASTERY_THRESHOLD:
-            all_passed = False
-            break
+        item_best_scores.append(best_score if best_score is not None else 0)
+
+    proficiency_score = min(item_best_scores) if item_best_scores else 0
 
     user_skill = UserSkill.query.filter_by(user_id=user_id, skill_id=skill_id).first()
     if user_skill is None:
         user_skill = UserSkill(user_id=user_id, skill_id=skill_id, proficiency=0)
         db.session.add(user_skill)
 
-    if all_passed:
-        user_skill.proficiency = 100
+    user_skill.proficiency = proficiency_score
 
     db.session.commit()
     return user_skill.proficiency
@@ -298,7 +290,6 @@ def get_active_roadmap(user: User) -> List[dict]:
    
     active_path = LearningPath.query.filter_by(user_id=user.id, is_active=True).first()
     if active_path is None:
-        
         return generate_roadmap(user, persist=True)
 
     roadmap = []
@@ -314,3 +305,148 @@ def get_active_roadmap(user: User) -> List[dict]:
             "completed": item.completed_at is not None,
         })
     return roadmap
+
+
+def get_skill_graph_view(user: User) -> List[dict]:
+    
+   
+    if user.track is None:
+        raise ValueError("User has no track assigned yet.")
+ 
+    graph = build_track_skill_graph(user.track)
+    order = topo_order(graph)
+ 
+    view = []
+    for skill_id in order:
+        node = graph[skill_id]
+        proficiency = get_proficiency(user, skill_id)
+        prereq_ids = node["prereqs"]
+        prereqs_met = all(get_proficiency(user, p) >= MASTERY_THRESHOLD for p in prereq_ids)
+ 
+        view.append({
+            "skill_id": skill_id,
+            "name": node["name"],
+            "domain": node["skill"].domain,
+            "prerequisite_ids": prereq_ids,
+            "prerequisite_names": [graph[p]["name"] for p in prereq_ids],
+            "proficiency": proficiency,
+            "mastered": proficiency >= MASTERY_THRESHOLD,
+            "prerequisites_met": prereqs_met,
+            "excluded": is_excluded(user, skill_id),
+        })
+    return view
+
+
+def get_progress_view(user: User) -> List[dict]:
+   
+    if user.track is None:
+        raise ValueError("User has no track assigned yet.")
+
+    graph = build_track_skill_graph(user.track)
+    order = topo_order(graph)
+
+    view = []
+    for skill_id in order:
+        node = graph[skill_id]
+        attempts = (
+            SkillProgress.query
+            .filter_by(user_id=user.id, skill_id=skill_id)
+            .order_by(SkillProgress.taken_at.asc())
+            .all()
+        )
+        attempt_list = [
+            {
+                "score": a.score,
+                "resource_id": a.resource_id,
+                "resource": a.resource.title if a.resource else None,
+                "taken_at": a.taken_at.isoformat() if a.taken_at else None,
+            }
+            for a in attempts
+        ]
+        scores = [a.score for a in attempts if a.score is not None]
+
+        view.append({
+            "skill_id": skill_id,
+            "name": node["name"],
+            "domain": node["skill"].domain,
+            "proficiency": get_proficiency(user, skill_id),
+            "mastered": get_proficiency(user, skill_id) >= MASTERY_THRESHOLD,
+            "attempts_count": len(attempts),
+            "best_score": max(scores) if scores else None,
+            "latest_score": scores[-1] if scores else None,
+            "latest_taken_at": attempt_list[-1]["taken_at"] if attempt_list else None,
+            "attempts": attempt_list,
+        })
+    return view
+
+
+def get_skill_progress(user: User, skill_id: int) -> dict:
+   
+    skill = Skill.query.get(skill_id)
+    if skill is None:
+        raise ValueError(f"No skill with id {skill_id}")
+
+    attempts = (
+        SkillProgress.query
+        .filter_by(user_id=user.id, skill_id=skill_id)
+        .order_by(SkillProgress.taken_at.asc())
+        .all()
+    )
+    attempt_list = [
+        {
+            "score": a.score,
+            "resource_id": a.resource_id,
+            "resource": a.resource.title if a.resource else None,
+            "taken_at": a.taken_at.isoformat() if a.taken_at else None,
+        }
+        for a in attempts
+    ]
+    scores = [a.score for a in attempts if a.score is not None]
+
+    return {
+        "skill_id": skill.id,
+        "name": skill.name,
+        "domain": skill.domain,
+        "proficiency": get_proficiency(user, skill_id),
+        "mastered": get_proficiency(user, skill_id) >= MASTERY_THRESHOLD,
+        "attempts_count": len(attempts),
+        "best_score": max(scores) if scores else None,
+        "latest_score": scores[-1] if scores else None,
+        "attempts": attempt_list,
+    }
+
+
+def set_skill_excluded(user: User, skill_id: int, excluded: bool) -> None:
+    us = UserSkill.query.filter_by(user_id=user.id, skill_id=skill_id).first()
+    if us is None:
+        us = UserSkill(user_id=user.id, skill_id=skill_id, proficiency=0, excluded=excluded)
+        db.session.add(us)
+    else:
+        us.excluded = excluded
+    db.session.commit()
+
+
+def reorder_active_path(user: User, skill_id_order: List[int]) -> List[dict]:
+    active_path = LearningPath.query.filter_by(user_id=user.id, is_active=True).first()
+    if active_path is None:
+        raise ValueError("User has no active learning path to reorder.")
+
+    items_by_skill = {i.skill_id: i for i in active_path.items}
+    valid_order = [sid for sid in skill_id_order if sid in items_by_skill]
+    remaining = [i.skill_id for i in active_path.items if i.skill_id not in valid_order]
+    final_order = valid_order + remaining
+
+    for idx, skill_id in enumerate(final_order):
+        items_by_skill[skill_id].order_index = idx
+
+    db.session.commit()
+    return get_active_roadmap(user)
+
+
+def build_chat_context(user: User) -> dict:
+    return {
+        "track": user.track.name if user.track else None,
+        "goal_text": user.goal_text,
+        "skill_graph": get_skill_graph_view(user),
+        "roadmap": get_active_roadmap(user),
+    }

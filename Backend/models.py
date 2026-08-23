@@ -105,6 +105,7 @@ class UserSkill(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     skill_id = db.Column(db.Integer, db.ForeignKey("skill.id"), nullable=False)
     proficiency = db.Column(db.Integer, default=0)  # 0-100
+    excluded = db.Column(db.Boolean, default=False)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
     user = db.relationship("User", back_populates="skills")
@@ -203,7 +204,7 @@ class Feedback(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     resource_id = db.Column(db.Integer, db.ForeignKey("resource.id"), nullable=False)
-    type = db.Column(db.String(20), nullable=False)  # "like" / "dislike" / "skip"
+    type = db.Column(db.String(20), nullable=False)  
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship("User", back_populates="feedback")
