@@ -1,4 +1,4 @@
-AI-Powered Personalized Learning Path Recommender
+## AI-Powered Personalized Learning Path Recommender
 
 An intelligent learning assistant that turns a learner's goal, typed in plain English, into a structured, prerequisite-aware roadmap of skills and resources — then explains every recommendation and adapts the path as the learner progresses.
 
