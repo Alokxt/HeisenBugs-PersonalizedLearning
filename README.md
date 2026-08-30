@@ -103,9 +103,6 @@ Learnflow solves the *sequencing* problem, not just the *recommendation* problem
 - Custom embeddings via Bytez (`nomic-ai/nomic-embed-text-v1.5`)
 - Rule-based + heuristic scoring engine (skill-gap coverage, prerequisite match, difficulty fit, learning-style match, historical preference) combined with graph algorithms (topological sort over the skill/prerequisite DAG)
 
-**Frontend**
-- HTML5, CSS3, vanilla JavaScript (no framework) — `login.html`, `register.html`, `roadmap.html` (dashboard), `progress.html`, `quiz.html`, `chat_test_console.html`
-- `fetch` API for all backend communication, JWT stored in `localStorage`
 
 ## Data Model
 
@@ -133,71 +130,254 @@ Core entities (see `Backend/models.py`):
 5. **LLM-driven conversational actions** — the chat endpoint sends the learner's live skill-graph context to an LLM (Groq), which returns both a natural-language reply and structured actions (`exclude`, `include`, `reorder`) that are applied directly to the learner's roadmap.
 6. **LLM-based quiz generation** — skill content is passed to an LLM with a constrained prompt to generate medium-to-hard, content-grounded assessment questions.
 
+# AI-Powered Personalized Learning Path Recommender
+
+An AI-powered personalized learning platform that generates adaptive learning roadmaps based on a user's goals, skills, and progress. The platform combines a Flask backend with a modern Vite-based frontend and AI components for recommendations, quizzes, progress tracking, and an interactive learning assistant.
+
 ## Project Structure
 
-```
+```text
 PersonalizedRoadmap/
+│
 ├── Backend/
-│   ├── app.py                # Flask app entrypoint, DB init, seeding
-│   ├── auth.py                # /api/register, /api/login (JWT)
-│   ├── userapp.py             # /user/roadmap, /chat, /quiz, /progress, /skill-graph
-│   ├── recommender.py         # skill graph, topo sort, scoring, roadmap generation
-│   ├── track_resolver.py      # goal text → track matching
-│   ├── models.py              # SQLAlchemy models
-│   ├── seed.py                # seeds tracks/skills/resources
-│   ├── embedds.py             # Bytez embeddings wrapper for RAG
-│   ├── demo_road.py           # demo/sample roadmap script
-│   └── requirements.txt
-└── frontend/
-    ├── login.html
-    ├── register.html
-    ├── roadmap.html           # main dashboard (skill roadmap timeline)
-    ├── progress.html
-    ├── quiz.html
-    └── chat_test_console.html # AI assistant chat interface
+│   ├── app.py                  # Flask application entry point
+│   ├── auth.py                 # Authentication APIs (register/login/JWT)
+│   ├── userapp.py              # User roadmap, chat, quiz, progress APIs
+│   ├── recommender.py          # Skill graph, scoring and roadmap generation
+│   ├── track_resolver.py       # Goal/skill text matching and track resolution
+│   ├── models.py               # SQLAlchemy database models
+│   ├── seed.py                 # Database seeding
+│   ├── embeds.py               # Embedding wrapper for RAG
+│   ├── demo_road.py            # Demo/sample roadmap generation
+│   └── requirements.txt        # Python dependencies
+│
+├── frontend/
+│   ├── public/                 # Static public assets
+│   │
+│   ├── src/
+│   │   ├── ...                 # React components, pages and frontend logic
+│   │
+│   ├── .gitignore
+│   ├── .oxlintrc.json
+│   ├── README.md
+│   ├── index.html              # Vite/React entry HTML
+│   ├── index1.html
+│   ├── package.json            # Node.js dependencies and scripts
+│   ├── package-lock.json
+│   └── vite.config.js          # Vite configuration
+│
+└── README.md
 ```
 
-## Setup & Installation
+## Features
 
-### Prerequisites
-- Python 3.10+
-- A [Groq API key](https://console.groq.com/) (free tier)
-- A [Bytez API key](https://bytez.com/) (for embeddings, used by the RAG assistant)
+- Personalized learning roadmap generation
+- Skill graph and prerequisite-based learning paths
+- AI-powered recommendations
+- User authentication using JWT
+- Progress tracking
+- AI-generated quizzes
+- Interactive AI learning assistant
+- RAG-based question answering
+- Skill and resource recommendations
+- Adaptive roadmap based on user progress and preferences
+
+## Technology Stack
 
 ### Backend
 
+- Python
+- Flask
+- Flask REST APIs
+- SQLAlchemy
+- JWT Authentication
+- SQLite / SQL Database
+- Redis
+- AI/LLM APIs
+- Embeddings and RAG
+
+### Frontend
+
+- React
+- Vite
+- JavaScript
+- HTML
+- CSS
+- npm
+
+## Prerequisites
+
+Make sure the following are installed:
+
+- Python 3.x
+- Node.js
+- npm
+- Git
+
+## Backend Setup
+
+Navigate to the backend directory:
+
 ```bash
 cd Backend
-python -m venv venv
-source venv/bin/activate        # Windows: venv\Scripts\activate
-pip install -r requirements.txt
-pip install flask flask-sqlalchemy flask-cors flask-jwt-extended langchain langchain-groq langchain-community bytez
 ```
 
-Create a `.env` file inside `Backend/`:
+Create a virtual environment:
+
+### Windows
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+```
+
+### Linux / macOS
+
+```bash
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Install the Python dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+### Environment Variables
+
+Create a `.env` file inside the `Backend` directory.
+
+Example:
 
 ```env
-GROQ_API_KEY=your_groq_api_key
-BYTEZ_API_KEY=your_bytez_api_key
-JWT_SECRET_KEY=some-secret-key
+SECRET_KEY=your_secret_key
+JWT_SECRET_KEY=your_jwt_secret_key
+
+DATABASE_URL=your_database_url
+
+REDIS_URL=your_redis_url
+
+API_KEY=your_api_key
 ```
 
-Run the server (this also creates and seeds the SQLite database on first run):
+Replace the values with the appropriate credentials for your environment.
+
+Do not commit `.env` to GitHub.
+
+A `.env.example` file can be used to document the required variables without exposing secret credentials.
+
+Example:
+
+```env
+SECRET_KEY=
+JWT_SECRET_KEY=
+DATABASE_URL=
+REDIS_URL=
+API_KEY=
+```
+
+### Start the Backend
+
+For local development:
 
 ```bash
 python app.py
 ```
 
-The API will be available at `http://localhost:5000`.
+The Flask backend will run on:
 
-### Frontend
+```text
+http://localhost:5000
+```
 
-No build step required — it's static HTML/CSS/JS.
+For production, use a WSGI server such as Gunicorn instead of Flask's development server:
+
+```bash
+gunicorn app:app
+```
+
+## Frontend Setup
+
+Open a new terminal and navigate to the frontend:
 
 ```bash
 cd frontend
-python -m http.server 5500
 ```
+
+Install the Node.js dependencies:
+
+```bash
+npm install
+```
+
+Start the Vite development server:
+
+```bash
+npm run dev
+```
+
+Vite will provide a local URL, typically:
+
+```text
+http://localhost:5173
+```
+
+Open the URL in your browser.
+
+## Running the Complete Project
+
+Run the backend and frontend in separate terminals.
+
+### Terminal 1 — Backend
+
+```bash
+cd Backend
+
+# Activate virtual environment
+venv\Scripts\activate
+
+# Start Flask
+python app.py
+```
+
+### Terminal 2 — Frontend
+
+```bash
+cd frontend
+
+# Install dependencies if not already installed
+npm install
+
+# Start Vite
+npm run dev
+```
+
+```bash
+npm run build
+```
+
+The production frontend will be generated in the Vite build output directory.
+
+## Security
+
+The following files and credentials should not be committed to the repository:
+
+```text
+.env
+venv/
+node_modules/
+API keys
+Database credentials
+JWT secrets
+Redis credentials
+```
+
+Make sure these are included in `.gitignore`.
+
+## Team
+
+Developed by **HeisenBugs** for the HCLTech Amplified Hackathon.
 
 Open `http://localhost:5500/register.html` in your browser to create an account and get started.
 
@@ -223,7 +403,7 @@ All `/user/*` routes require a `Authorization: Bearer <token>` header.
 
 | Name | Role |
 |---|---|
-| _Team Lead_ | Recommendation engine & AI workflow (Groq/LangChain, scoring logic, roadmap generation) |
+| Alok | Recommendation engine & AI workflow (Groq/LangChain, scoring logic, roadmap generation) |
 | Shubham | Database schema & backend (Flask, models, auth) |
 | Akanksha | Frontend & UI |
 
