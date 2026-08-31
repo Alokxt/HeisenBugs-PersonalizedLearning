@@ -1,31 +1,43 @@
 from flask import Flask
-from seed import run_seed
-from models import db
-import re
-from typing import Dict, List, Optional, Tuple
-from routes.auth  import auth_bp
-from routes.userapp import user_bp
 from flask_cors import CORS
-import os 
 from flask_jwt_extended import JWTManager
+from models import db
+from routes.auth import auth_bp
+from routes.userapp import user_bp
+from seed import run_seed
+import os
+from dotenv import load_dotenv
 
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)
 
-app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URI")
-app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY")
+basedir = os.path.abspath(os.path.dirname(__file__))
+# Use env var if available, otherwise fallback to local sqlite for development
+app.config["SQLALCHEMY_DATABASE_URI"] = os.environ.get("DATABASE_URI", 'sqlite:///' + os.path.join(basedir, 'instance', 'app.db'))
+app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
+app.config["JWT_SECRET_KEY"] = os.environ.get("JWT_SECRET_KEY", "super-secret-heisenbugs-key-change-in-prod")
+
 jwt = JWTManager(app)
 
 db.init_app(app)
 app.register_blueprint(auth_bp)
-app.register_blueprint(user_bp,url_prefix="/user")
+app.register_blueprint(user_bp, url_prefix="/user")
 
+# Import all models here so SQLAlchemy knows about them before create_all
+try:
+    from models import User, Track, TrackSkill, Skill, skill_prerequisites, UserSkill, Resource, ResourceSkill, LearningPath, LearningPathItem, SkillProgress, Feedback
+except Exception as e:
+    pass
 
-
-DEMO_EMAIL = "aditi.demo@example.com"
-if __name__ == "__main__":
-    with app.app_context():
-        db.create_all()  
+with app.app_context():
+    os.makedirs(os.path.join(basedir, 'instance'), exist_ok=True)
+    db.create_all()
+    try:
         run_seed()
-    app.run(debug=False, use_reloader=False)
+    except Exception as e:
+        print("Seed failed or already seeded:", e)
+
+if __name__ == "__main__":
+    app.run(debug=False, use_reloader=False, port=5000)

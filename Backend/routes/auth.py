@@ -68,7 +68,9 @@ def register():
         
         return jsonify({"error": "Something went wrong while creating your account. Please try again."}), 500
 
+    token = create_access_token(identity=str(user.id))
     response = {
+        "access_token": token,
         "user": {
             "id": user.id,
             "username": user.username,
