@@ -28,7 +28,10 @@ export default function Dashboard() {
   );
   if (!data) return <div className="text-error text-center mt-10">Error loading dashboard.</div>;
 
-  const { track, name, progress } = data;
+  const { track, progress } = data;
+  const userStr = localStorage.getItem('user');
+  const userObj = userStr ? JSON.parse(userStr) : {};
+  const name = userObj.username || 'Agent';
   
   const totalScore = progress.reduce((acc, curr) => acc + curr.proficiency, 0);
   const overallProgress = progress.length ? Math.round(totalScore / progress.length) : 0;
@@ -50,7 +53,7 @@ export default function Dashboard() {
             <span className="material-symbols-outlined text-[20px]">tune</span>
             Update Preferences
           </button>
-          <button onClick={() => navigate('/quiz')} className="aurora-btn px-6 py-3 rounded-full font-label-md text-label-md font-bold flex items-center gap-2">
+          <button onClick={() => navigate(nextStep ? `/quiz?skill=${encodeURIComponent(nextStep.skill)}` : '/quiz')} className="aurora-btn px-6 py-3 rounded-full font-label-md text-label-md font-bold flex items-center gap-2">
             <span className="material-symbols-outlined text-[20px]">psychology</span>
             Take Skill Assessment
           </button>

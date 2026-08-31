@@ -1,22 +1,39 @@
-import { useState } from 'react';
-
-const MOCK_SKILL_GRAPH = {
-  skills: [
-    { id: 1, name: 'HTML & CSS Basics', description: 'Fundamental structure and styling of web pages.', status: 'mastered' },
-    { id: 2, name: 'JavaScript Fundamentals', description: 'Core programming concepts in JavaScript.', status: 'mastered' },
-    { id: 3, name: 'React Basics', description: 'Components, state, and props in React.', status: 'available', prerequisites: ['HTML & CSS Basics', 'JavaScript Fundamentals'] },
-    { id: 4, name: 'Node.js & Express', description: 'Backend JavaScript runtime and framework.', status: 'available', prerequisites: ['JavaScript Fundamentals'] },
-    { id: 5, name: 'Advanced React', description: 'Hooks, context, and performance optimization.', status: 'locked', prerequisites: ['React Basics'] },
-    { id: 6, name: 'MongoDB', description: 'NoSQL database for modern web applications.', status: 'locked', prerequisites: ['Node.js & Express'] },
-    { id: 7, name: 'REST APIs', description: 'Architectural style for application program interfaces.', status: 'available', prerequisites: ['JavaScript Fundamentals'] },
-    { id: 8, name: 'Full-Stack Integration', description: 'Connecting React frontend with Node backend.', status: 'locked', prerequisites: ['React Basics', 'Node.js & Express'] }
-  ]
-};
+import { useState, useEffect } from 'react';
+import { fetchSkillGraph } from '../api';
 
 export default function SkillGraph() {
-  const [filter, setFilter] = useState('all'); // all, mastered, available, locked
+  const [filter, setFilter] = useState('all');
+  const [skills, setSkills] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  const filteredSkills = MOCK_SKILL_GRAPH.skills.filter(s => filter === 'all' || s.status === filter);
+  useEffect(() => {
+    fetchSkillGraph()
+      .then(data => {
+        const mappedSkills = (data.skills || []).map(s => {
+          let status = 'locked';
+          if (s.mastered) status = 'mastered';
+          else if (s.prerequisites_met) status = 'available';
+          
+          return {
+            ...s,
+            skill: s.name,
+            status: status
+          };
+        });
+        setSkills(mappedSkills);
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setError("Failed to load skill graph.");
+        setLoading(false);
+      });
+  }, []);
+  const filteredSkills = skills.filter(s => filter === 'all' || s.status === filter);
+
+  if (loading) return <div className="flex justify-center items-center h-screen font-headline-md text-on-surface">Loading Graph...</div>;
+  if (error) return <div className="flex justify-center items-center h-screen font-headline-md text-error">{error}</div>;
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -68,7 +85,7 @@ export default function SkillGraph() {
           
           return (
             <div 
-              key={skill.id} 
+              key={skill.skill_id} 
               className={`glass-panel p-6 rounded-2xl flex flex-col gap-4 border transition-all duration-300 hover:-translate-y-1 hover:shadow-2xl ${bgClass} ${borderClass} group relative overflow-hidden`}
               style={{ animation: `fadeIn 0.5s ease-out forwards ${index * 0.05}s`, opacity: 0 }}
             >
@@ -85,9 +102,9 @@ export default function SkillGraph() {
               </div>
               
               <div>
-                <h3 className="font-headline-sm text-headline-sm text-on-surface mb-2 leading-tight">{skill.name}</h3>
+                <h3 className="font-headline-sm text-headline-sm text-on-surface mb-2 leading-tight">{skill.skill}</h3>
                 <p className="font-body-md text-body-md text-on-surface-variant line-clamp-2 leading-relaxed">
-                  {skill.description}
+                  {skill.description || "Core engineering concept"}
                 </p>
               </div>
               

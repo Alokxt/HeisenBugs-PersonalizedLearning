@@ -1,25 +1,24 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { apiCall } from '../api';
+import { useNavigate, Link } from 'react-router-dom';
+import { loginUser } from '../api';
 
 export default function Login() {
   const navigate = useNavigate();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
     try {
-      const data = await apiCall('/login', {
-        method: 'POST',
-        body: JSON.stringify({ username, password })
-      });
-      localStorage.setItem('token', data.access_token);
+      const data = await loginUser({ username, password });
+      localStorage.setItem('access_token', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
       navigate('/dashboard');
     } catch (err) {
-      setError(err.message);
+      setError(err.message || err.data?.errors?.login || "Login failed");
     }
   };
 
@@ -91,12 +90,12 @@ export default function Login() {
                     className="w-full bg-surface-container/50 text-on-surface border border-outline-variant rounded-DEFAULT pl-12 pr-4 py-3 font-body-md text-body-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-300 placeholder:text-on-surface-variant/50" 
                     id="password" 
                     placeholder="••••••••" 
-                    type="password"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                   />
-                  <button className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors focus:outline-none" type="button">
-                    <span className="material-symbols-outlined">visibility</span>
+                  <button onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors focus:outline-none" type="button">
+                    <span className="material-symbols-outlined">{showPassword ? 'visibility_off' : 'visibility'}</span>
                   </button>
                 </div>
               </div>
@@ -113,7 +112,7 @@ export default function Login() {
             <div className="text-center pt-2 border-t border-outline-variant/30">
               <p className="font-body-md text-body-md text-on-surface-variant">
                 Don't have an account? 
-                <a className="font-label-md text-label-md text-secondary hover:text-secondary-container transition-colors ml-1" href="#">Sign up</a>
+                <Link to="/onboarding" className="font-label-md text-label-md text-secondary hover:text-secondary-container transition-colors ml-1">Sign up</Link>
               </p>
             </div>
           </div>

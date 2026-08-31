@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { fetchRoadmap, sendChatMessage } from '../api';
+import { fetchRoadmap, sendChatMessage, regenerateRoadmap } from '../api';
 
 export default function Roadmap() {
   const navigate = useNavigate();
@@ -27,7 +27,20 @@ export default function Roadmap() {
         const response = await sendChatMessage(`Please ${action} the skill: ${skillName}`);
         setRoadmap(response.roadmap);
       } else if (action === 'start') {
-        navigate('/chat');
+        navigate(`/quiz?skill=${encodeURIComponent(skillName)}`);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+    setRecalculating(false);
+  };
+
+  const handleRegenerate = async () => {
+    setRecalculating(true);
+    try {
+      const response = await regenerateRoadmap();
+      if (response.roadmap) {
+        setRoadmap(response.roadmap);
       }
     } catch (e) {
       console.error(e);
@@ -54,7 +67,7 @@ export default function Roadmap() {
           <h1 className="font-display-lg text-display-lg text-on-surface mb-2">My Learning Path</h1>
           <p className="font-body-lg text-body-lg text-on-surface-variant max-w-2xl">{roadmap.length} milestones ahead on your personalized journey.</p>
         </div>
-        <button className="ghost-btn font-label-md text-label-md text-on-surface px-6 py-3 rounded-lg flex items-center gap-2">
+        <button onClick={handleRegenerate} className="ghost-btn font-label-md text-label-md text-on-surface px-6 py-3 rounded-lg flex items-center gap-2">
           <span className="material-symbols-outlined">refresh</span>
           Regenerate Path
         </button>
@@ -157,14 +170,10 @@ export default function Roadmap() {
                       
                       {isInProgress && (
                         <>
-                          <button onClick={() => handleAction('start')} className="aurora-btn px-5 py-2 rounded-lg font-label-md text-label-md flex items-center gap-2">
+                          <button onClick={() => handleAction('start', item.skill)} className="aurora-btn px-5 py-2 rounded-lg font-label-md text-label-md flex items-center gap-2">
                             <span className="material-symbols-outlined text-[18px]">task_alt</span> Start Module
                           </button>
-                          {item.resource_url && (
-                             <a href={item.resource_url} target="_blank" rel="noreferrer" className="text-on-surface hover:text-primary transition-colors font-label-md text-label-md flex items-center gap-1">
-                               <span className="material-symbols-outlined text-[18px]">ondemand_video</span> View Resource
-                             </a>
-                          )}
+
                           <div className="flex gap-2 ml-auto mt-4 w-full justify-end md:w-auto md:mt-0">
                             <button onClick={() => handleAction('dislike', item.skill)} className="text-error hover:text-error-container transition-colors font-label-md text-label-md">Dislike</button>
                             <button onClick={() => handleAction('skip', item.skill)} className="text-outline hover:text-on-surface transition-colors font-label-md text-label-md">Skip</button>

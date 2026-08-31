@@ -31,7 +31,7 @@ def get_groqmodel():
     from langchain_groq import ChatGroq
     model = ChatGroq(
         model_name="openai/gpt-oss-20b",
-        api_key=os.environ["GROQ_API_KEY"],
+        api_key=os.environ.get("GROQ_API_KEY", "dummy-key"),
         temperature=0.7
     )
     return model
@@ -40,7 +40,7 @@ def get_groqmodel2():
 
     return ChatGroq(
         model="openai/gpt-oss-20b",
-        api_key=os.environ["GROQ_API_KEY"],
+        api_key=os.environ.get("GROQ_API_KEY", "dummy-key"),
         temperature=0.3,
         include_reasoning=False,
         max_tokens=8000,
@@ -50,7 +50,7 @@ def get_groqmodel3():
     from langchain_groq import ChatGroq
     model = ChatGroq(
         model_name="openai/gpt-oss-20b",
-        api_key=os.environ["GROQ_API_KEY"],
+        api_key=os.environ.get("GROQ_API_KEY", "dummy-key"),
         temperature=0.7,
         model_kwargs={"response_format": {"type": "json_object"}},
     )
@@ -186,9 +186,38 @@ def skill_graph_view():
 
     return jsonify({"track": user.track.name, "skills": graph}), 200
  
- 
- 
- 
+@user_bp.route("/profile", methods=["GET", "POST"])
+@jwt_required()
+def profile():
+    user_id = get_jwt_identity()
+    user = User.query.get(int(user_id))
+    if user is None:
+        return jsonify({"error": "User not found."}), 404
+
+    if request.method == "GET":
+        return jsonify({
+            "username": user.username,
+            "email": user.email,
+            "goal": user.goal_text,
+            "hours_per_week": user.hours_per_week,
+            "preferred_style": user.preferred_style
+        }), 200
+
+    data = request.get_json(silent=True) or {}
+    new_goal = (data.get("goal") or "").strip()
+    
+    if new_goal and new_goal != user.goal_text:
+        user.goal_text = new_goal
+        track, confidence = resolve_track(new_goal)
+        if track:
+            set_user_track(user, track)
+            generate_roadmap(user, persist=True)
+            
+    user.hours_per_week = data.get("hours_per_week", user.hours_per_week)
+    user.preferred_style = data.get("preferred_style", user.preferred_style)
+    db.session.commit()
+    
+    return jsonify({"success": True}), 200
 
 
 
@@ -257,17 +286,23 @@ def chat():
         context = build_chat_context(user)
         valid_skill_ids = {s["skill_id"] for s in context["skill_graph"]}
 
-        PromptTemplate = get_prompttemp()
-        prompt = PromptTemplate(
-            template=CHAT_PROMPT,
-            input_variables=["context", "message"],
-        )
-        model = get_groqmodel()
-        parser = get_strparser()
-        chain = prompt | model | parser
+        if os.environ.get("GROQ_API_KEY", "dummy-key") == "dummy-key":
+            parsed = {
+                "reply": f"This is a simulated response since no API key is provided. You asked: {message}",
+                "actions": []
+            }
+        else:
+            PromptTemplate = get_prompttemp()
+            prompt = PromptTemplate(
+                template=CHAT_PROMPT,
+                input_variables=["context", "message"],
+            )
+            model = get_groqmodel()
+            parser = get_strparser()
+            chain = prompt | model | parser
 
-        raw = chain.invoke({"context": json.dumps(context), "message": message})
-        parsed = clean_llm_json(raw)
+            raw = chain.invoke({"context": json.dumps(context), "message": message})
+            parsed = clean_llm_json(raw)
 
         reply = parsed.get("reply", "")
         actions = parsed.get("actions", [])
@@ -323,23 +358,31 @@ def extract_text(raw):
 import json_repair
 
 def clean_llm_json(text):
-    if isinstance(text, dict):
+    if isinstance(text, dict) or isinstance(text, list):
         return text
     if not isinstance(text, str):
         raise ValueError(f"Expected string/dict, got {type(text)}")
 
     cleaned = re.sub(r"```(?:json)?", "", text, flags=re.IGNORECASE).strip()
-    start = cleaned.find("{")
-    end = cleaned.rfind("}")
-    if start == -1 or end == -1 or end < start:
-        raise ValueError("Quiz generation returned no parseable JSON.")
-
-    json_str = cleaned[start:end + 1]
+    
+    # Try finding first { or [ to handle both objects and arrays
+    start = -1
+    end = -1
+    for char in ['{', '[']:
+        idx = cleaned.find(char)
+        if idx != -1 and (start == -1 or idx < start):
+            start = idx
+            
+    for char in ['}', ']']:
+        idx = cleaned.rfind(char)
+        if idx != -1 and idx > end:
+            end = idx
+            
+    json_str = cleaned[start:end + 1] if start != -1 and end != -1 and end > start else cleaned
 
     try:
         return json.loads(json_str)
     except json.JSONDecodeError:
-       
         repaired = json_repair.loads(json_str)
         if not repaired:
             raise ValueError("Quiz generation returned malformed, unrepairable JSON.")
@@ -407,8 +450,8 @@ Return ONLY valid JSON. Do not include markdown, code fences, or any text outsid
                 "questions": [
                     {{
                     "question": "Question text here",
-                    "options": ["Option A", "Option B", "Option C", "Option D"],
-                    "answer": "Correct Option (e.g., B)",
+                    "options": ["Option 1", "Option 2", "Option 3", "Option 4"],
+                    "answer": "The EXACT text of the correct option (e.g. 'Option 2', not 'B')",
                     "explanation": "Why the correct option is correct."
                     }},
                     {{
@@ -422,19 +465,25 @@ Return ONLY valid JSON. Do not include markdown, code fences, or any text outsid
 """,
 input_variables=['num_ques','content'],
         )
-        #model = get_chatmodel()
-        model = get_groqmodel3()
-        parser = get_strparser()
-        chain = temp | model | parser
+        if os.environ.get("GROQ_API_KEY", "dummy-key") == "dummy-key":
+            parsed = {
+                "questions": [
+                    {
+                        "question": "What is the primary purpose of a React Component?",
+                        "options": ["To query the database directly", "To encapsulate reusable UI logic", "To manage CSS styles globally", "To optimize server-side rendering"],
+                        "answer": "To encapsulate reusable UI logic",
+                        "explanation": "React components let you split the UI into independent, reusable pieces."
+                    }
+                ]
+            }
+        else:
+            model = get_groqmodel3()
+            parser = get_strparser()
+            chain = temp | model | parser
 
-   
-    
-
-        raw = chain.invoke({'content':ans,'num_ques':num_ques})
-        extra = extract_text(raw)
-        ("TYPE:", type(raw))
-        ("RAW:", repr(raw))
-        parsed = clean_llm_json(raw)
+            raw = chain.invoke({'content':ans,'num_ques':num_ques})
+            extra = extract_text(raw)
+            parsed = clean_llm_json(raw)
         
 
         return jsonify({"success":True,"content":parsed})

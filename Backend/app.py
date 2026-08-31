@@ -6,6 +6,9 @@ from routes.auth import auth_bp
 from routes.userapp import user_bp
 from seed import run_seed
 import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app)

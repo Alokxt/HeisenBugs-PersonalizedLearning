@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { fetchProfile, updateProfile } from '../api';
 
 export default function Profile() {
   const navigate = useNavigate();
@@ -14,17 +15,21 @@ export default function Profile() {
     preferred_style: 'Interactive'
   });
 
-  // Load from local storage if exists (mocking a fetch)
   useEffect(() => {
-    const user = JSON.parse(localStorage.getItem('user') || '{}');
-    if (user.username) {
-      setProfile(prev => ({
-        ...prev,
-        username: user.username,
-        email: user.email || prev.email,
-        goal: user.goal || prev.goal,
-      }));
-    }
+    fetchProfile()
+      .then(data => {
+        if (!data.error) {
+          setProfile(prev => ({
+            ...prev,
+            username: data.username,
+            email: data.email,
+            goal: data.goal || prev.goal,
+            hours_per_week: data.hours_per_week || prev.hours_per_week,
+            preferred_style: data.preferred_style || prev.preferred_style
+          }));
+        }
+      })
+      .catch(err => console.error("Failed to load profile", err));
   }, []);
 
   const handleChange = (e) => {
@@ -32,17 +37,18 @@ export default function Profile() {
     setSaved(false);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     setLoading(true);
-    // Simulate an API call
-    setTimeout(() => {
-      setLoading(false);
-      setSaved(true);
-      // Update local storage to persist mock state
-      const user = JSON.parse(localStorage.getItem('user') || '{}');
-      localStorage.setItem('user', JSON.stringify({ ...user, ...profile }));
-      window.scrollTo({top: 0, behavior: 'smooth'});
-    }, 600);
+    try {
+      const res = await updateProfile(profile);
+      if (res.success) {
+        setSaved(true);
+        window.scrollTo({top: 0, behavior: 'smooth'});
+      }
+    } catch (err) {
+      console.error("Failed to save profile:", err);
+    }
+    setLoading(false);
   };
 
   return (
@@ -189,7 +195,8 @@ export default function Profile() {
                 Cancel
               </button>
               <button 
-                type="submit"
+                type="button"
+                onClick={handleSave}
                 className="aurora-btn font-label-md text-label-md rounded-full py-3 px-8 font-semibold"
                 disabled={loading}
               >

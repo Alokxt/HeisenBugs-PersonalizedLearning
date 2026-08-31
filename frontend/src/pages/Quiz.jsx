@@ -1,56 +1,58 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-
-const MOCK_QUESTIONS = [
-  {
-    id: 1,
-    question: "What is the primary purpose of a React Component?",
-    options: [
-      "To query the database directly",
-      "To encapsulate reusable UI logic",
-      "To manage CSS styles globally",
-      "To optimize server-side rendering"
-    ],
-    correct: 1
-  },
-  {
-    id: 2,
-    question: "Which hook is used to manage side effects in React?",
-    options: [
-      "useState",
-      "useContext",
-      "useEffect",
-      "useMemo"
-    ],
-    correct: 2
-  },
-  {
-    id: 3,
-    question: "What does JSX stand for?",
-    options: [
-      "JavaScript XML",
-      "Java Syntax Extension",
-      "JSON XML",
-      "JavaScript X-Node"
-    ],
-    correct: 0
-  }
-];
+import { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { generateQuiz, completeSkill } from '../api';
 
 export default function Quiz() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const skillName = queryParams.get('skill') || "General Concepts";
+  
+  const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
   const [selectedAnswers, setSelectedAnswers] = useState({});
   const [showResults, setShowResults] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    generateQuiz(skillName)
+      .then(res => {
+        if (res.success && res.content) {
+          const qs = res.content.questions || (Array.isArray(res.content) ? res.content : null);
+          if (qs) {
+            setQuestions(qs);
+          } else {
+            setError("Failed to generate quiz.");
+          }
+        } else {
+          setError("Failed to generate quiz.");
+        }
+        setLoading(false);
+      })
+      .catch(err => {
+        console.error(err);
+        setError("Error generating quiz.");
+        setLoading(false);
+      });
+  }, [skillName]);
 
   const handleSelect = (idx) => {
     setSelectedAnswers({ ...selectedAnswers, [currentQuestion]: idx });
   };
 
   const handleNext = () => {
-    if (currentQuestion < MOCK_QUESTIONS.length - 1) {
+    if (currentQuestion < questions.length - 1) {
       setCurrentQuestion(prev => prev + 1);
     } else {
+      let score = 0;
+      questions.forEach((q, i) => {
+        const selectedOptionText = q.options[selectedAnswers[i]];
+        if (selectedOptionText === q.answer) score++;
+      });
+      const percentage = Math.round((score / questions.length) * 100);
+      completeSkill(skillName, percentage).catch(err => console.error("Failed to save score:", err));
+      
       setShowResults(true);
     }
   };
@@ -61,13 +63,19 @@ export default function Quiz() {
     }
   };
 
+  if (loading) return <div className="flex justify-center items-center h-screen font-headline-md text-on-surface">Generating Custom Quiz for {skillName}...</div>;
+  if (error) return <div className="flex justify-center items-center h-screen font-headline-md text-error">{error}</div>;
+  if (questions.length === 0) return <div className="flex justify-center items-center h-screen font-headline-md text-on-surface">No questions found.</div>;
+
   if (showResults) {
     let score = 0;
-    MOCK_QUESTIONS.forEach((q, i) => {
-      if (selectedAnswers[i] === q.correct) score++;
+    questions.forEach((q, i) => {
+      // Backend returns string answer. Let's compare options.
+      const selectedOptionText = q.options[selectedAnswers[i]];
+      if (selectedOptionText === q.answer) score++;
     });
     
-    const percentage = Math.round((score / MOCK_QUESTIONS.length) * 100);
+    const percentage = Math.round((score / questions.length) * 100);
 
     return (
       <div className="flex flex-col items-center justify-center min-h-[70vh] relative">
@@ -89,13 +97,13 @@ export default function Quiz() {
               />
             </svg>
             <div className="absolute flex flex-col items-center">
-              <span className="font-display-lg text-4xl text-on-surface">{score}/{MOCK_QUESTIONS.length}</span>
+              <span className="font-display-lg text-4xl text-on-surface">{score}/{questions.length}</span>
               <span className="font-mono-label text-primary">{percentage}%</span>
             </div>
           </div>
           
           <p className="font-body-lg text-body-lg text-on-surface-variant mb-10 max-w-md mx-auto">
-            {score === MOCK_QUESTIONS.length 
+            {percentage >= 80 
               ? "Excellent work! Your neural pathways are fully optimized for this domain." 
               : "Good effort. The system will adapt your future path to reinforce these concepts."}
           </p>
@@ -108,8 +116,8 @@ export default function Quiz() {
     );
   }
 
-  const question = MOCK_QUESTIONS[currentQuestion];
-  const progressPercent = ((currentQuestion + 1) / MOCK_QUESTIONS.length) * 100;
+  const question = questions[currentQuestion];
+  const progressPercent = ((currentQuestion + 1) / questions.length) * 100;
 
   return (
     <div className="max-w-3xl mx-auto py-8 relative">
@@ -120,10 +128,10 @@ export default function Quiz() {
         <div className="flex justify-between items-end mb-4">
           <h2 className="font-headline-md text-headline-md text-on-surface flex items-center gap-3">
             <span className="material-symbols-outlined text-secondary text-3xl" style={{fontVariationSettings: "'FILL' 1"}}>quiz</span>
-            Module Assessment
+            Assessment: {skillName}
           </h2>
           <span className="font-mono-label text-mono-label text-outline uppercase tracking-widest">
-            {currentQuestion + 1} / {MOCK_QUESTIONS.length}
+            {currentQuestion + 1} / {questions.length}
           </span>
         </div>
         {/* Progress Bar */}
@@ -180,7 +188,7 @@ export default function Quiz() {
           onClick={handleNext} 
           disabled={selectedAnswers[currentQuestion] === undefined}
         >
-          {currentQuestion === MOCK_QUESTIONS.length - 1 ? 'Analyze Results' : 'Next'} <span className="material-symbols-outlined">arrow_forward</span>
+          {currentQuestion === questions.length - 1 ? 'Analyze Results' : 'Next'} <span className="material-symbols-outlined">arrow_forward</span>
         </button>
       </div>
       

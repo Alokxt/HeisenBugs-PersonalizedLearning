@@ -14,6 +14,8 @@ export default function Onboarding() {
     password2: '',
     goal: ''
   });
+  const [showPassword, setShowPassword] = useState(false);
+  const [showPassword2, setShowPassword2] = useState(false);
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -141,15 +143,18 @@ export default function Onboarding() {
                   <div className="relative group/input">
                     <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within/input:text-primary transition-colors">lock</span>
                     <input 
-                      className="w-full bg-surface-container/50 text-on-surface border border-outline-variant rounded-DEFAULT pl-12 pr-4 py-2 font-body-md text-body-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-300 placeholder:text-on-surface-variant/50" 
+                      className="w-full bg-surface-container/50 text-on-surface border border-outline-variant rounded-DEFAULT pl-12 pr-12 py-2 font-body-md text-body-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-300 placeholder:text-on-surface-variant/50" 
                       id="password" 
                       name="password" 
                       placeholder="••••••••" 
-                      type="password"
+                      type={showPassword ? "text" : "password"}
                       required
                       value={formData.password}
                       onChange={handleChange}
                     />
+                    <button onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors focus:outline-none" type="button">
+                      <span className="material-symbols-outlined text-[20px]">{showPassword ? 'visibility_off' : 'visibility'}</span>
+                    </button>
                   </div>
                 </div>
 
@@ -159,15 +164,18 @@ export default function Onboarding() {
                   <div className="relative group/input">
                     <span className="material-symbols-outlined absolute left-4 top-1/2 -translate-y-1/2 text-on-surface-variant group-focus-within/input:text-primary transition-colors">password</span>
                     <input 
-                      className="w-full bg-surface-container/50 text-on-surface border border-outline-variant rounded-DEFAULT pl-12 pr-4 py-2 font-body-md text-body-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-300 placeholder:text-on-surface-variant/50" 
+                      className="w-full bg-surface-container/50 text-on-surface border border-outline-variant rounded-DEFAULT pl-12 pr-12 py-2 font-body-md text-body-md focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary transition-all duration-300 placeholder:text-on-surface-variant/50" 
                       id="password2" 
                       name="password2" 
                       placeholder="••••••••" 
-                      type="password"
+                      type={showPassword2 ? "text" : "password"}
                       required
                       value={formData.password2}
                       onChange={handleChange}
                     />
+                    <button onClick={() => setShowPassword2(!showPassword2)} className="absolute right-4 top-1/2 -translate-y-1/2 text-on-surface-variant hover:text-on-surface transition-colors focus:outline-none" type="button">
+                      <span className="material-symbols-outlined text-[20px]">{showPassword2 ? 'visibility_off' : 'visibility'}</span>
+                    </button>
                   </div>
                 </div>
               </div>

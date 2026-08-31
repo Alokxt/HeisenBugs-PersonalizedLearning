@@ -3,7 +3,7 @@ from langchain_core.embeddings import Embeddings
 from dotenv import load_dotenv
 import os 
 load_dotenv()
-bytez_api_key = os.environ["BYTEZ_API_KEY"]
+bytez_api_key = os.environ.get("BYTEZ_API_KEY", "dummy-key")
 class BytezEmbeddings(Embeddings):
   def __init__(self,api_key,model_name):
     self.api_key = api_key
