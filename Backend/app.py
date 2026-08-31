@@ -31,13 +31,13 @@ try:
 except Exception as e:
     pass
 
+with app.app_context():
+    os.makedirs(os.path.join(basedir, 'instance'), exist_ok=True)
+    db.create_all()
+    try:
+        run_seed()
+    except Exception as e:
+        print("Seed failed or already seeded:", e)
+
 if __name__ == "__main__":
-    with app.app_context():
-        os.makedirs(os.path.join(basedir, 'instance'), exist_ok=True)
-        db.create_all()
-        try:
-            run_seed()
-        except Exception as e:
-            print("Seed failed or already seeded:", e)
-            
     app.run(debug=False, use_reloader=False, port=5000)
