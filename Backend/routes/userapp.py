@@ -2,7 +2,7 @@ from flask import Blueprint, jsonify, request , current_app
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from models import db, User
 from recommender.recommend import generate_roadmap, get_active_roadmap, set_user_track, complete_skill , get_skill_graph_view , build_chat_context , set_skill_excluded , reorder_active_path ,get_progress_view
-from recommender.track_resolver  import resolve_track
+from recommender.track_resolver import resolve_track
 import os 
 import re 
 import json 
